@@ -1833,7 +1833,6 @@ namespace DarkMultiPlayer
                 //Don't set the position while the vessel is unpacking / loading.
                 if (isUnpacking || isLoading)
                 {
-                    DarkLog.Debug("Skipping update, isUnpacking: " + isUnpacking + " isLoading: " + isLoading);
                     return;
                 }
                 if (updateVessel.packed)
@@ -1884,10 +1883,20 @@ namespace DarkMultiPlayer
             updateVessel.transform.LookAt(updateVessel.transform.position + updateVessel.mainBody.transform.TransformDirection(vesselForward).normalized, updateVessel.mainBody.transform.TransformDirection(vesselUp));
             updateVessel.SetRotation(updateVessel.transform.rotation);
 
-            if (!updateVessel.packed)
+            if (updateVessel.loaded)
             {
-                //updateVessel.angularVelocity = new Vector3(update.angularVelocity[0], update.angularVelocity[1], update.angularVelocity[2]);
-                updateVessel.angularVelocity = Vector3.zero;
+                Vector3 newAngularVelocity = new Vector3(update.angularVelocity[0], update.angularVelocity[1], update.angularVelocity[2]);
+                Vector3 rotatedAngularVelocity = updateVessel.rigidbody.rotation * newAngularVelocity;
+                DarkLog.Debug("Old: " + updateVessel.angularVelocity);
+                DarkLog.Debug("New:" + newAngularVelocity);
+                DarkLog.Debug("Rotated:" + rotatedAngularVelocity);
+                if (updateVessel.rigidbody != null)
+                {
+                    DarkLog.Debug("Before:" + updateVessel.rigidbody.angularVelocity);
+                    updateVessel.rigidbody.angularVelocity = updateVessel.rigidbody.rotation * newAngularVelocity;
+                    DarkLog.Debug("After:" + updateVessel.rigidbody.angularVelocity);
+                }
+                DarkLog.Debug("Set: " + updateVessel.angularVelocity);
             }
             if (!isSpectating)
             {

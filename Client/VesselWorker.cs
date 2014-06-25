@@ -975,14 +975,14 @@ namespace DarkMultiPlayer
                 returnUpdate.vesselID = updateVessel.id.ToString();
                 returnUpdate.planetTime = Planetarium.GetUniversalTime();
                 returnUpdate.bodyName = updateVessel.mainBody.bodyName;
-                /*
+
                 returnUpdate.rotation = new float[4];
-                Quaternion transformRotation = updateVessel.transform.rotation;
-                returnUpdate.rotation[0] = transformRotation.x;
-                returnUpdate.rotation[1] = transformRotation.y;
-                returnUpdate.rotation[2] = transformRotation.z;
-                returnUpdate.rotation[3] = transformRotation.w;
-                */
+                returnUpdate.rotation[0] = updateVessel.srfRelRotation.x;
+                returnUpdate.rotation[1] = updateVessel.srfRelRotation.y;
+                returnUpdate.rotation[2] = updateVessel.srfRelRotation.z;
+                returnUpdate.rotation[3] = updateVessel.srfRelRotation.w;
+
+                /*
                 returnUpdate.vesselForward = new float[3];
                 Vector3 transformVesselForward = updateVessel.mainBody.transform.InverseTransformDirection(updateVessel.transform.forward);
                 returnUpdate.vesselForward[0] = transformVesselForward.x;
@@ -994,6 +994,7 @@ namespace DarkMultiPlayer
                 returnUpdate.vesselUp[0] = transformVesselUp.x;
                 returnUpdate.vesselUp[1] = transformVesselUp.y;
                 returnUpdate.vesselUp[2] = transformVesselUp.z;
+                */
 
                 returnUpdate.angularVelocity = new float[3];
                 returnUpdate.angularVelocity[0] = updateVessel.angularVelocity.x;
@@ -1836,6 +1837,11 @@ namespace DarkMultiPlayer
                 }
                 bool isLoading = (updateDistance < Vessel.loadDistance) && !updateVessel.loaded;
                 bool isUnpacking = (updateDistance < updateVessel.distanceUnpackThreshold) && updateVessel.packed && updateVessel.loaded;
+                if (updateVessel.HoldPhysics)
+                {
+                    DarkLog.Debug("Skipping update, physics held");
+                    return;
+                }
                 //Don't set the position while the vessel is unpacking / loading.
                 if (isUnpacking || isLoading)
                 {
@@ -1881,20 +1887,48 @@ namespace DarkMultiPlayer
                 }
 
             }
-            //Quaternion updateRotation = new Quaternion(update.rotation[0], update.rotation[1], update.rotation[2], update.rotation[3]);
-            //updateVessel.SetRotation(updateRotation);
-
+            Quaternion updateRotation = new Quaternion(update.rotation[0], update.rotation[1], update.rotation[2], update.rotation[3]);
+            updateVessel.SetRotation(updateVessel.mainBody.bodyTransform.rotation * updateRotation);
+            /*
             Vector3 vesselForward = new Vector3(update.vesselForward[0], update.vesselForward[1], update.vesselForward[2]);
             Vector3 vesselUp = new Vector3(update.vesselUp[0], update.vesselUp[1], update.vesselUp[2]);
 
             updateVessel.transform.LookAt(updateVessel.transform.position + updateVessel.mainBody.transform.TransformDirection(vesselForward).normalized, updateVessel.mainBody.transform.TransformDirection(vesselUp));
             updateVessel.SetRotation(updateVessel.transform.rotation);
+            */
 
-            if (!updateVessel.packed)
+            Vector3 angularVelocity = new Vector3(update.angularVelocity[0], update.angularVelocity[1], update.angularVelocity[2]);
+            DarkLog.Debug("aV Before: " + updateVessel.angularVelocity);
+            DarkLog.Debug("aV Set: " + angularVelocity);
+            if (updateVessel.LandedOrSplashed)
             {
                 //updateVessel.angularVelocity = new Vector3(update.angularVelocity[0], update.angularVelocity[1], update.angularVelocity[2]);
                 updateVessel.angularVelocity = Vector3.zero;
+                if (updateVessel.rootPart != null && updateVessel.rootPart.rb != null)
+                {
+                    updateVessel.rootPart.rb.angularVelocity = Vector3.zero;
+                }
             }
+            else
+            {
+                updateVessel.angularVelocity = angularVelocity;
+                if (updateVessel.rootPart != null && updateVessel.rootPart.rb != null)
+                {
+                    DarkLog.Debug("rbaV Before: " + updateVessel.rootPart.rb.angularVelocity);
+                    Vector3 newAng = updateVessel.ReferenceTransform.rotation * angularVelocity;
+                    DarkLog.Debug("rbaV newAng: " + newAng);
+                    updateVessel.rootPart.rb.angularVelocity = newAng;
+                    DarkLog.Debug("rbaV After: " + updateVessel.rootPart.rb.angularVelocity);
+                }
+            }
+            updateVessel.MOI = updateVessel.findLocalMOI();
+            updateVessel.angularMomentum.x = updateVessel.MOI.x * angularVelocity.x;
+            updateVessel.angularMomentum.y = updateVessel.MOI.y * angularVelocity.y;
+            updateVessel.angularMomentum.z = updateVessel.MOI.z * angularVelocity.z;
+            if (updateVessel.vesselSAS != null) {
+                updateVessel.vesselSAS.SetDampingMode(false);
+            }
+            DarkLog.Debug("aV After: " + updateVessel.angularVelocity);
             if (!isSpectating)
             {
                 updateVessel.ctrlState.CopyFrom(update.flightState);
@@ -2101,9 +2135,10 @@ namespace DarkMultiPlayer
         public string vesselID;
         public double planetTime;
         public string bodyName;
-        //public float[] rotation;
-        public float[] vesselForward;
-        public float[] vesselUp;
+        //Found out KSP's magic rotation setting by browsing Vessel.FixedUpdate()
+        public float[] rotation;
+        //public float[] vesselForward;
+        //public float[] vesselUp;
         public float[] angularVelocity;
         public FlightCtrlState flightState;
         public bool[] actiongroupControls;

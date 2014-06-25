@@ -1812,6 +1812,12 @@ namespace DarkMultiPlayer
                 DarkLog.Debug("ApplyVesselUpdate - updateBody not found");
                 return;
             }
+            Vector3d rootCoMDiff = Vector3d.zero;
+            if (updateVessel != null && updateVessel.loaded && !updateVessel.packed)
+            {
+                rootCoMDiff = updateVessel.findLocalCenterOfMass();
+                DarkLog.Debug("rootCoMDiff: " + rootCoMDiff);
+            }
             if (update.isSurfaceUpdate)
             {
                 //Get the new position/velocity
@@ -1842,7 +1848,7 @@ namespace DarkMultiPlayer
                     updateVessel.longitude = update.position[1];
                     updateVessel.altitude = update.position[2];
                     Vector3d orbitalPos = updatePostion - updateBody.position;
-                    Vector3d surfaceOrbitVelDiff = updateBody.getRFrmVel(updatePostion);
+                    Vector3d surfaceOrbitVelDiff = updateBody.getRFrmVel(updatePostion + rootCoMDiff);
                     Vector3d orbitalVel = updateVelocity + surfaceOrbitVelDiff;
                     //Vector3d oldPos = updateVessel.orbitDriver.orbit.pos;
                     //Vector3d oldVel = updateVessel.orbitDriver.orbit.vel;
@@ -1853,7 +1859,7 @@ namespace DarkMultiPlayer
                 else
                 {
                     Vector3d velocityOffset = updateVelocity - updateVessel.srf_velocity;
-                    updateVessel.SetPosition(updatePostion);
+                    updateVessel.SetPosition(updatePostion + rootCoMDiff);
                     updateVessel.ChangeWorldVelocity(velocityOffset);
                 }
             }
@@ -1869,7 +1875,7 @@ namespace DarkMultiPlayer
                 {
                     //KSP's inaccuracy hurts me.
                     Vector3d orbitalPositionDelta = new Vector3d(update.orbitalPositionDelta[0], update.orbitalPositionDelta[1], update.orbitalPositionDelta[2]);
-                    updateVessel.SetPosition(updateOrbit.getPositionAtUT(Planetarium.GetUniversalTime()) + orbitalPositionDelta);
+                    updateVessel.SetPosition(updateOrbit.getPositionAtUT(Planetarium.GetUniversalTime()) + orbitalPositionDelta + rootCoMDiff);
                     Vector3d velocityOffset = updateOrbit.getOrbitalVelocityAtUT(Planetarium.GetUniversalTime()).xzy - updateVessel.orbit.getOrbitalVelocityAtUT(Planetarium.GetUniversalTime()).xzy;
                     updateVessel.ChangeWorldVelocity(velocityOffset);
                 }
